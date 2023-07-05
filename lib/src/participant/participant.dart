@@ -2,6 +2,7 @@ import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 
 import '../core/room.dart';
+import '../e2ee/options.dart';
 import '../events.dart';
 import '../extensions.dart';
 import '../logger.dart';
@@ -9,12 +10,8 @@ import '../managers/event.dart';
 import '../proto/livekit_models.pb.dart' as lk_models;
 import '../publication/track_publication.dart';
 import '../support/disposable.dart';
-import '../track/local/local.dart';
-import '../track/track.dart';
 import '../types/other.dart';
 import '../types/participant_permissions.dart';
-import 'local.dart';
-import 'remote.dart';
 
 /// Represents a Participant in the room, notifies changes via delegates as
 /// well as ChangeNotifier/providers.
@@ -94,6 +91,16 @@ abstract class Participant<T extends TrackPublication>
   // Must be implemented by child class.
   List<T> get audioTracks;
 
+  EncryptionType get firstTrackEncryptionType {
+    if (hasAudio) {
+      return audioTracks.first.encryptionType;
+    } else if (hasVideo) {
+      return videoTracks.first.encryptionType;
+    } else {
+      return EncryptionType.kNone;
+    }
+  }
+
   @internal
   bool get hasInfo => _participantInfo != null;
 
@@ -159,8 +166,8 @@ abstract class Participant<T extends TrackPublication>
   @internal
   void updateFromInfo(lk_models.ParticipantInfo info) {
     identity = info.identity;
-    _name = info.name;
     sid = info.sid;
+    updateName(info.name);
     if (info.metadata.isNotEmpty) {
       _setMetadata(info.metadata);
     }
@@ -175,6 +182,16 @@ abstract class Participant<T extends TrackPublication>
     final oldValue = _permissions;
     _permissions = newValue;
     return oldValue;
+  }
+
+  @internal
+  void updateName(String name) {
+    if (_name == name) return;
+    _name = name;
+    [events, room.events].emit(ParticipantNameUpdatedEvent(
+      participant: this,
+      name: name,
+    ));
   }
 
   /// for internal use
@@ -230,14 +247,11 @@ abstract class Participant<T extends TrackPublication>
             (source == TrackSource.microphone &&
                 e.kind == lk_models.TrackType.AUDIO) ||
             (source == TrackSource.camera &&
-                e.kind == lk_models.TrackType.VIDEO &&
-                e.name != Track.screenShareName) ||
+                e.kind == lk_models.TrackType.VIDEO) ||
             (source == TrackSource.screenShareVideo &&
-                e.kind == lk_models.TrackType.VIDEO &&
-                e.name == Track.screenShareName) ||
+                e.kind == lk_models.TrackType.VIDEO) ||
             (source == TrackSource.screenShareAudio &&
-                e.kind == lk_models.TrackType.AUDIO &&
-                e.name == Track.screenShareName));
+                e.kind == lk_models.TrackType.AUDIO));
   }
 
   /// (Equality operator) [Participant.hashCode] is same as [sid.hashCode].

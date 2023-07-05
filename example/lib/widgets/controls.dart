@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:collection/collection.dart';
 import 'package:eva_icons_flutter/eva_icons_flutter.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_background/flutter_background.dart';
 import 'package:livekit_client/livekit_client.dart';
@@ -33,9 +34,10 @@ class _ControlsWidgetState extends State<ControlsWidget> {
   List<MediaDevice>? _audioInputs;
   List<MediaDevice>? _audioOutputs;
   List<MediaDevice>? _videoInputs;
-  MediaDevice? _selectedVideoInput;
 
   StreamSubscription? _subscription;
+
+  bool _speakerphoneOn = false;
 
   @override
   void initState() {
@@ -61,7 +63,6 @@ class _ControlsWidgetState extends State<ControlsWidget> {
     _audioInputs = devices.where((d) => d.kind == 'audioinput').toList();
     _audioOutputs = devices.where((d) => d.kind == 'audiooutput').toList();
     _videoInputs = devices.where((d) => d.kind == 'videoinput').toList();
-    _selectedVideoInput = _videoInputs?.first;
     setState(() {});
   }
 
@@ -94,23 +95,24 @@ class _ControlsWidgetState extends State<ControlsWidget> {
   }
 
   void _selectAudioOutput(MediaDevice device) async {
-    await Hardware.instance.selectAudioOutput(device);
+    await widget.room.setAudioOutputDevice(device);
     setState(() {});
   }
 
   void _selectAudioInput(MediaDevice device) async {
-    await Hardware.instance.selectAudioInput(device);
+    await widget.room.setAudioInputDevice(device);
     setState(() {});
   }
 
   void _selectVideoInput(MediaDevice device) async {
-    final track = participant.videoTracks.firstOrNull?.track;
-    if (track == null) return;
-    if (_selectedVideoInput?.deviceId != device.deviceId) {
-      await track.switchCamera(device.deviceId);
-      _selectedVideoInput = device;
-      setState(() {});
-    }
+    await widget.room.setVideoInputDevice(device);
+    setState(() {});
+  }
+
+  void _setSpeakerphoneOn() {
+    _speakerphoneOn = !_speakerphoneOn;
+    Hardware.instance.setSpeakerphoneOn(_speakerphoneOn);
+    setState(() {});
   }
 
   void _toggleCamera() async {
@@ -131,7 +133,7 @@ class _ControlsWidgetState extends State<ControlsWidget> {
   }
 
   void _enableScreenShare() async {
-    if (WebRTC.platformIsDesktop) {
+    if (lkPlatformIsDesktop()) {
       try {
         final source = await showDialog<DesktopCapturerSource>(
           context: context,
@@ -154,7 +156,7 @@ class _ControlsWidgetState extends State<ControlsWidget> {
       }
       return;
     }
-    if (WebRTC.platformIsAndroid) {
+    if (lkPlatformIs(PlatformType.android)) {
       // Android specific
       requestBackgroundPermission([bool isRetry = false]) async {
         // Required for android screenshare.
@@ -186,7 +188,7 @@ class _ControlsWidgetState extends State<ControlsWidget> {
 
       await requestBackgroundPermission();
     }
-    if (WebRTC.platformIsIOS) {
+    if (lkPlatformIs(PlatformType.iOS)) {
       var track = await LocalVideoTrack.createScreenShareTrack(
         const ScreenShareCaptureOptions(
           useiOSBroadcastExtension: true,
@@ -233,6 +235,11 @@ class _ControlsWidgetState extends State<ControlsWidget> {
     final result = await context.showSimulateScenarioDialog();
     if (result != null) {
       print('${result}');
+
+      if (SimulateScenarioResult.e2eeKeyRatchet == result) {
+        await widget.room.e2eeManager?.ratchetKey();
+      }
+
       await widget.room.sendSimulateScenario(
         signalReconnect:
             result == SimulateScenarioResult.signalReconnect ? true : null,
@@ -278,6 +285,7 @@ class _ControlsWidgetState extends State<ControlsWidget> {
                 return [
                   PopupMenuItem<MediaDevice>(
                     value: null,
+                    onTap: isMuted ? _enableAudio : _disableAudio,
                     child: const ListTile(
                       leading: Icon(
                         EvaIcons.micOff,
@@ -285,7 +293,6 @@ class _ControlsWidgetState extends State<ControlsWidget> {
                       ),
                       title: Text('Mute Microphone'),
                     ),
-                    onTap: isMuted ? _enableAudio : _disableAudio,
                   ),
                   if (_audioInputs != null)
                     ..._audioInputs!.map((device) {
@@ -293,8 +300,7 @@ class _ControlsWidgetState extends State<ControlsWidget> {
                         value: device,
                         child: ListTile(
                           leading: (device.deviceId ==
-                                  Hardware
-                                      .instance.selectedAudioInput?.deviceId)
+                                  widget.room.selectedAudioInputDeviceId)
                               ? const Icon(
                                   EvaIcons.checkmarkSquare,
                                   color: Colors.white,
@@ -317,43 +323,54 @@ class _ControlsWidgetState extends State<ControlsWidget> {
               icon: const Icon(EvaIcons.micOff),
               tooltip: 'un-mute audio',
             ),
-          PopupMenuButton<MediaDevice>(
-            icon: const Icon(Icons.volume_up),
-            itemBuilder: (BuildContext context) {
-              return [
-                const PopupMenuItem<MediaDevice>(
-                  value: null,
-                  child: ListTile(
-                    leading: Icon(
-                      EvaIcons.speaker,
-                      color: Colors.white,
-                    ),
-                    title: Text('Select Audio Output'),
-                  ),
-                ),
-                if (_audioOutputs != null)
-                  ..._audioOutputs!.map((device) {
-                    return PopupMenuItem<MediaDevice>(
-                      value: device,
-                      child: ListTile(
-                        leading: (device.deviceId ==
-                                Hardware.instance.selectedAudioOutput?.deviceId)
-                            ? const Icon(
-                                EvaIcons.checkmarkSquare,
-                                color: Colors.white,
-                              )
-                            : const Icon(
-                                EvaIcons.square,
-                                color: Colors.white,
-                              ),
-                        title: Text(device.label),
+          if (!lkPlatformIsMobile())
+            PopupMenuButton<MediaDevice>(
+              icon: const Icon(Icons.volume_up),
+              itemBuilder: (BuildContext context) {
+                return [
+                  const PopupMenuItem<MediaDevice>(
+                    value: null,
+                    child: ListTile(
+                      leading: Icon(
+                        EvaIcons.speaker,
+                        color: Colors.white,
                       ),
-                      onTap: () => _selectAudioOutput(device),
-                    );
-                  }).toList()
-              ];
-            },
-          ),
+                      title: Text('Select Audio Output'),
+                    ),
+                  ),
+                  if (_audioOutputs != null)
+                    ..._audioOutputs!.map((device) {
+                      return PopupMenuItem<MediaDevice>(
+                        value: device,
+                        child: ListTile(
+                          leading: (device.deviceId ==
+                                  widget.room.selectedAudioOutputDeviceId)
+                              ? const Icon(
+                                  EvaIcons.checkmarkSquare,
+                                  color: Colors.white,
+                                )
+                              : const Icon(
+                                  EvaIcons.square,
+                                  color: Colors.white,
+                                ),
+                          title: Text(device.label),
+                        ),
+                        onTap: () => _selectAudioOutput(device),
+                      );
+                    }).toList()
+                ];
+              },
+            ),
+          if (!kIsWeb && lkPlatformIsMobile())
+            IconButton(
+              disabledColor: Colors.grey,
+              onPressed: Hardware.instance.canSwitchSpeakerphone
+                  ? _setSpeakerphoneOn
+                  : null,
+              icon: Icon(
+                  _speakerphoneOn ? Icons.speaker_phone : Icons.phone_android),
+              tooltip: 'Switch SpeakerPhone',
+            ),
           if (participant.isCameraEnabled())
             PopupMenuButton<MediaDevice>(
               icon: const Icon(EvaIcons.video),
@@ -361,6 +378,7 @@ class _ControlsWidgetState extends State<ControlsWidget> {
                 return [
                   PopupMenuItem<MediaDevice>(
                     value: null,
+                    onTap: _disableVideo,
                     child: const ListTile(
                       leading: Icon(
                         EvaIcons.videoOff,
@@ -368,23 +386,22 @@ class _ControlsWidgetState extends State<ControlsWidget> {
                       ),
                       title: Text('Disable Camera'),
                     ),
-                    onTap: _disableVideo,
                   ),
                   if (_videoInputs != null)
                     ..._videoInputs!.map((device) {
                       return PopupMenuItem<MediaDevice>(
                         value: device,
                         child: ListTile(
-                          leading:
-                              (device.deviceId == _selectedVideoInput?.deviceId)
-                                  ? const Icon(
-                                      EvaIcons.checkmarkSquare,
-                                      color: Colors.white,
-                                    )
-                                  : const Icon(
-                                      EvaIcons.square,
-                                      color: Colors.white,
-                                    ),
+                          leading: (device.deviceId ==
+                                  widget.room.selectedVideoInputDeviceId)
+                              ? const Icon(
+                                  EvaIcons.checkmarkSquare,
+                                  color: Colors.white,
+                                )
+                              : const Icon(
+                                  EvaIcons.square,
+                                  color: Colors.white,
+                                ),
                           title: Text(device.label),
                         ),
                         onTap: () => _selectVideoInput(device),

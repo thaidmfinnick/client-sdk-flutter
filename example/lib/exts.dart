@@ -20,6 +20,25 @@ extension LKExampleExt on BuildContext {
         ),
       );
 
+  Future<bool?> showPlayAudioManuallyDialog() => showDialog<bool>(
+        context: this,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Play Audio'),
+          content: const Text(
+              'You need to manually activate audio PlayBack for iOS Safari !'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Ignore'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Play Audio'),
+            ),
+          ],
+        ),
+      );
+
   Future<bool?> showUnPublishDialog() => showDialog<bool>(
         context: this,
         builder: (ctx) => AlertDialog(
@@ -136,6 +155,23 @@ extension LKExampleExt on BuildContext {
         ),
       );
 
+  Future<bool?> showRecordingStatusChangedDialog(bool isActiveRecording) =>
+      showDialog<bool>(
+        context: this,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Room recording reminder'),
+          content: Text(isActiveRecording
+              ? 'Room recording is active.'
+              : 'Room recording is stoped.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+
   Future<bool?> showSubscribePermissionDialog() => showDialog<bool>(
         context: this,
         builder: (ctx) => AlertDialog(
@@ -177,4 +213,5 @@ enum SimulateScenarioResult {
   serverLeave,
   switchCandidate,
   clear,
+  e2eeKeyRatchet,
 }

@@ -7,20 +7,24 @@ import 'package:livekit_example/theme.dart';
 
 import 'no_video.dart';
 import 'participant_info.dart';
+import 'participant_stats.dart';
 
 abstract class ParticipantWidget extends StatefulWidget {
   // Convenience method to return relevant widget for participant
-  static ParticipantWidget widgetFor(ParticipantTrack participantTrack) {
+  static ParticipantWidget widgetFor(ParticipantTrack participantTrack,
+      {bool showStatsLayer = false}) {
     if (participantTrack.participant is LocalParticipant) {
       return LocalParticipantWidget(
           participantTrack.participant as LocalParticipant,
           participantTrack.videoTrack,
-          participantTrack.isScreenShare);
+          participantTrack.isScreenShare,
+          showStatsLayer);
     } else if (participantTrack.participant is RemoteParticipant) {
       return RemoteParticipantWidget(
           participantTrack.participant as RemoteParticipant,
           participantTrack.videoTrack,
-          participantTrack.isScreenShare);
+          participantTrack.isScreenShare,
+          showStatsLayer);
     }
     throw UnimplementedError('Unknown participant type');
   }
@@ -29,6 +33,7 @@ abstract class ParticipantWidget extends StatefulWidget {
   abstract final Participant participant;
   abstract final VideoTrack? videoTrack;
   abstract final bool isScreenShare;
+  abstract final bool showStatsLayer;
   final VideoQuality quality;
 
   const ParticipantWidget({
@@ -44,11 +49,14 @@ class LocalParticipantWidget extends ParticipantWidget {
   final VideoTrack? videoTrack;
   @override
   final bool isScreenShare;
+  @override
+  final bool showStatsLayer;
 
   const LocalParticipantWidget(
     this.participant,
     this.videoTrack,
-    this.isScreenShare, {
+    this.isScreenShare,
+    this.showStatsLayer, {
     Key? key,
   }) : super(key: key);
 
@@ -63,11 +71,14 @@ class RemoteParticipantWidget extends ParticipantWidget {
   final VideoTrack? videoTrack;
   @override
   final bool isScreenShare;
+  @override
+  final bool showStatsLayer;
 
   const RemoteParticipantWidget(
     this.participant,
     this.videoTrack,
-    this.isScreenShare, {
+    this.isScreenShare,
+    this.showStatsLayer, {
     Key? key,
   }) : super(key: key);
 
@@ -136,7 +147,13 @@ abstract class _ParticipantWidgetState<T extends ParticipantWidget>
                     )
                   : const NoVideoWidget(),
             ),
-
+            if (widget.showStatsLayer)
+              Positioned(
+                  top: 30,
+                  right: 30,
+                  child: ParticipantStatsWidget(
+                    participant: widget.participant,
+                  )),
             // Bottom bar
             Align(
               alignment: Alignment.bottomCenter,
@@ -153,6 +170,8 @@ abstract class _ParticipantWidgetState<T extends ParticipantWidget>
                         firstAudioPublication?.subscribed == true,
                     connectionQuality: widget.participant.connectionQuality,
                     isScreenShare: widget.isScreenShare,
+                    enabledE2EE: widget.participant.firstTrackEncryptionType !=
+                        EncryptionType.kNone,
                   ),
                 ],
               ),
@@ -199,17 +218,22 @@ class _RemoteParticipantWidgetState
           mainAxisSize: MainAxisSize.max,
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
+            // Menu for RemoteTrackPublication<RemoteAudioTrack>
+            if (firstAudioPublication != null && !isScreenShare)
+              RemoteTrackPublicationMenuWidget(
+                pub: firstAudioPublication!,
+                icon: EvaIcons.volumeUp,
+              ),
             // Menu for RemoteTrackPublication<RemoteVideoTrack>
             if (videoPublication != null)
               RemoteTrackPublicationMenuWidget(
                 pub: videoPublication!,
                 icon: isScreenShare ? EvaIcons.monitor : EvaIcons.video,
               ),
-            // Menu for RemoteTrackPublication<RemoteAudioTrack>
-            if (firstAudioPublication != null && !isScreenShare)
-              RemoteTrackPublicationMenuWidget(
-                pub: firstAudioPublication!,
-                icon: EvaIcons.volumeUp,
+            if (videoPublication != null)
+              RemoteTrackFPSMenuWidget(
+                pub: videoPublication!,
+                icon: EvaIcons.options2,
               ),
           ],
         ),
@@ -249,6 +273,40 @@ class RemoteTrackPublicationMenuWidget extends StatelessWidget {
                 child: const Text('Un-subscribe'),
                 value: () => pub.unsubscribe(),
               ),
+          ],
+        ),
+      );
+}
+
+class RemoteTrackFPSMenuWidget extends StatelessWidget {
+  final IconData icon;
+  final RemoteTrackPublication pub;
+  const RemoteTrackFPSMenuWidget({
+    required this.pub,
+    required this.icon,
+    Key? key,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: Colors.black.withOpacity(0.3),
+        child: PopupMenuButton<Function>(
+          tooltip: 'PreferredFPS',
+          icon: Icon(icon, color: Colors.white),
+          onSelected: (value) => value(),
+          itemBuilder: (BuildContext context) => <PopupMenuEntry<Function>>[
+            PopupMenuItem(
+              child: const Text('30'),
+              value: () => pub.setVideoFPS(30),
+            ),
+            PopupMenuItem(
+              child: const Text('15'),
+              value: () => pub.setVideoFPS(15),
+            ),
+            PopupMenuItem(
+              child: const Text('8'),
+              value: () => pub.setVideoFPS(8),
+            ),
           ],
         ),
       );

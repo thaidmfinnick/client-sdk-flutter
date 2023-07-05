@@ -1,4 +1,8 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
 import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
 import 'package:meta/meta.dart';
 
@@ -50,14 +54,14 @@ abstract class LocalTrack extends Track {
   bool _published = false;
   bool get isPublished => _published;
 
+  String? codec;
+
   LocalTrack(
-    String name,
     lk_models.TrackType kind,
     TrackSource source,
     rtc.MediaStream mediaStream,
     rtc.MediaStreamTrack mediaStreamTrack,
   ) : super(
-          name,
           kind,
           source,
           mediaStream,
@@ -116,7 +120,7 @@ abstract class LocalTrack extends Track {
   static Future<rtc.MediaStream> createStream(
     LocalTrackOptions options,
   ) async {
-    final constraints = <String, dynamic>{
+    var constraints = <String, dynamic>{
       'audio': options is AudioCaptureOptions
           ? options.toMediaConstraintsMap()
           : options is ScreenShareCaptureOptions
@@ -129,6 +133,14 @@ abstract class LocalTrack extends Track {
 
     final rtc.MediaStream stream;
     if (options is ScreenShareCaptureOptions) {
+      if (kIsWeb) {
+        if (options.preferCurrentTab) {
+          constraints['preferCurrentTab'] = true;
+        }
+        if (options.selfBrowserSurface != null) {
+          constraints['selfBrowserSurface'] = options.selfBrowserSurface!;
+        }
+      }
       stream = await rtc.navigator.mediaDevices.getDisplayMedia(constraints);
     } else {
       // options is CameraVideoTrackOptions
@@ -192,7 +204,6 @@ abstract class LocalTrack extends Track {
     }
 
     logger.fine('$objectId.publish()');
-
     _published = true;
     return true;
   }
@@ -206,7 +217,6 @@ abstract class LocalTrack extends Track {
     }
 
     logger.fine('$objectId.unpublish()');
-
     _published = false;
     return true;
   }

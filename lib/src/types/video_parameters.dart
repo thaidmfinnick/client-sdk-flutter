@@ -227,7 +227,7 @@ extension VideoParametersPresets on VideoParameters {
   static const h720_43 = VideoParameters(
     dimensions: VideoDimensionsPresets.h720_43,
     encoding: VideoEncoding(
-      maxBitrate: 1 * 500 * 1000,
+      maxBitrate: 1500 * 1000,
       maxFramerate: 30,
     ),
   );
@@ -235,7 +235,7 @@ extension VideoParametersPresets on VideoParameters {
   static const h1080_43 = VideoParameters(
     dimensions: VideoDimensionsPresets.h1080_43,
     encoding: VideoEncoding(
-      maxBitrate: 2 * 500 * 1000,
+      maxBitrate: 2500 * 1000,
       maxFramerate: 30,
     ),
   );
@@ -243,7 +243,7 @@ extension VideoParametersPresets on VideoParameters {
   static const h1440_43 = VideoParameters(
     dimensions: VideoDimensionsPresets.h1440_43,
     encoding: VideoEncoding(
-      maxBitrate: 3 * 500 * 1000,
+      maxBitrate: 3500 * 1000,
       maxFramerate: 30,
     ),
   );
@@ -276,7 +276,7 @@ extension VideoParametersPresets on VideoParameters {
   static const screenShareH1080FPS15 = VideoParameters(
     dimensions: VideoDimensionsPresets.h1080_169,
     encoding: VideoEncoding(
-      maxBitrate: 1 * 500 * 1000,
+      maxBitrate: 1500 * 1000,
       maxFramerate: 15,
     ),
   );
@@ -285,6 +285,22 @@ extension VideoParametersPresets on VideoParameters {
     dimensions: VideoDimensionsPresets.h1080_169,
     encoding: VideoEncoding(
       maxBitrate: 3 * 1000 * 1000,
+      maxFramerate: 30,
+    ),
+  );
+
+  static const screenShareH1440FPS30 = VideoParameters(
+    dimensions: VideoDimensionsPresets.h1440_169,
+    encoding: VideoEncoding(
+      maxBitrate: 5 * 1000 * 1000,
+      maxFramerate: 30,
+    ),
+  );
+
+  static const screenShareH2160FPS30 = VideoParameters(
+    dimensions: VideoDimensionsPresets.h2160_169,
+    encoding: VideoEncoding(
+      maxBitrate: 8 * 1000 * 1000,
       maxFramerate: 30,
     ),
   );

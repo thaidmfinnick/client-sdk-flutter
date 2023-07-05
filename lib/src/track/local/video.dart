@@ -1,10 +1,12 @@
+import 'package:collection/collection.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart' as rtc;
 
+import '../../events.dart';
 import '../../logger.dart';
 import '../../proto/livekit_models.pb.dart' as lk_models;
 import '../../types/other.dart';
 import '../options.dart';
-import '../track.dart';
+import '../stats.dart';
 import 'audio.dart';
 import 'local.dart';
 
@@ -15,15 +17,107 @@ class LocalVideoTrack extends LocalTrack with VideoTrack {
   @override
   covariant VideoCaptureOptions currentOptions;
 
+  num? _currentBitrate;
+  get currentBitrate => _currentBitrate;
+  Map<String, VideoSenderStats>? prevStats;
+  final Map<String, num> _bitrateFoLayers = {};
+
+  @override
+  Future<bool> monitorStats() async {
+    if (sender == null || events.isDisposed) {
+      _currentBitrate = 0;
+      return false;
+    }
+    List<VideoSenderStats> stats = [];
+    try {
+      stats = await getSenderStats();
+    } catch (e) {
+      logger.warning('Failed to get sender stats: $e');
+      return false;
+    }
+    Map<String, VideoSenderStats> statsMap = {};
+
+    for (var s in stats) {
+      statsMap[s.rid ?? 'f'] = s;
+    }
+
+    if (prevStats != null) {
+      num totalBitrate = 0;
+      statsMap.forEach((key, s) {
+        final prev = prevStats![key];
+        var bitRateForlayer = computeBitrateForSenderStats(s, prev).toInt();
+        _bitrateFoLayers[key] = bitRateForlayer;
+        totalBitrate += bitRateForlayer;
+      });
+      _currentBitrate = totalBitrate;
+      events.emit(VideoSenderStatsEvent(
+        stats: statsMap,
+        currentBitrate: currentBitrate,
+        bitrateForLayers: _bitrateFoLayers,
+      ));
+    }
+
+    prevStats = statsMap;
+    return true;
+  }
+
+  Future<List<VideoSenderStats>> getSenderStats() async {
+    if (sender == null) {
+      return [];
+    }
+
+    final stats = await sender!.getStats();
+    List<VideoSenderStats> items = [];
+    for (var v in stats) {
+      if (v.type == 'outbound-rtp') {
+        VideoSenderStats vs = VideoSenderStats(v.id, v.timestamp);
+        vs.frameHeight = getNumValFromReport(v.values, 'frameHeight');
+        vs.frameWidth = getNumValFromReport(v.values, 'frameWidth');
+        vs.framesPerSecond = getNumValFromReport(v.values, 'framesPerSecond');
+        vs.firCount = getNumValFromReport(v.values, 'firCount');
+        vs.pliCount = getNumValFromReport(v.values, 'pliCount');
+        vs.nackCount = getNumValFromReport(v.values, 'nackCount');
+        vs.packetsSent = getNumValFromReport(v.values, 'packetsSent');
+        vs.bytesSent = getNumValFromReport(v.values, 'bytesSent');
+        vs.framesSent = getNumValFromReport(v.values, 'framesSent');
+        vs.rid = getStringValFromReport(v.values, 'rid');
+        vs.encoderImplementation =
+            getStringValFromReport(v.values, 'encoderImplementation');
+        vs.retransmittedPacketsSent =
+            getNumValFromReport(v.values, 'retransmittedPacketsSent');
+        vs.qualityLimitationReason =
+            getStringValFromReport(v.values, 'qualityLimitationReason');
+        vs.qualityLimitationResolutionChanges =
+            getNumValFromReport(v.values, 'qualityLimitationResolutionChanges');
+
+        // locate the appropriate remote-inbound-rtp item
+        final remoteId = getStringValFromReport(v.values, 'remoteId');
+        final r = stats.firstWhereOrNull((element) => element.id == remoteId);
+        if (r != null) {
+          vs.jitter = getNumValFromReport(r.values, 'jitter');
+          vs.packetsLost = getNumValFromReport(r.values, 'packetsLost');
+          vs.roundTripTime = getNumValFromReport(r.values, 'roundTripTime');
+        }
+        final c = stats.firstWhereOrNull((element) => element.type == 'codec');
+        if (c != null) {
+          vs.mimeType = getStringValFromReport(c.values, 'mimeType');
+          vs.payloadType = getNumValFromReport(c.values, 'payloadType');
+          vs.channels = getNumValFromReport(c.values, 'channels');
+          vs.clockRate = getNumValFromReport(c.values, 'clockRate');
+        }
+        items.add(vs);
+      }
+    }
+    return items;
+  }
+
   // Private constructor
   LocalVideoTrack._(
-    String name,
     TrackSource source,
     rtc.MediaStream stream,
     rtc.MediaStreamTrack track,
     this.currentOptions,
   ) : super(
-          name,
           lk_models.TrackType.VIDEO,
           source,
           stream,
@@ -38,7 +132,6 @@ class LocalVideoTrack extends LocalTrack with VideoTrack {
 
     final stream = await LocalTrack.createStream(options);
     return LocalVideoTrack._(
-      Track.cameraName,
       TrackSource.camera,
       stream,
       stream.getVideoTracks().first,
@@ -57,7 +150,6 @@ class LocalVideoTrack extends LocalTrack with VideoTrack {
 
     final stream = await LocalTrack.createStream(options);
     return LocalVideoTrack._(
-      Track.screenShareName,
       TrackSource.screenShareVideo,
       stream,
       stream.getVideoTracks().first,
@@ -73,13 +165,15 @@ class LocalVideoTrack extends LocalTrack with VideoTrack {
   static Future<List<LocalTrack>> createScreenShareTracksWithAudio([
     ScreenShareCaptureOptions? options,
   ]) async {
-    options ??= const ScreenShareCaptureOptions(captureScreenAudio: true);
-
+    if (options == null) {
+      options = const ScreenShareCaptureOptions(captureScreenAudio: true);
+    } else {
+      options = options.copyWith(captureScreenAudio: true);
+    }
     final stream = await LocalTrack.createStream(options);
 
     List<LocalTrack> tracks = [
       LocalVideoTrack._(
-        Track.screenShareName,
         TrackSource.screenShareVideo,
         stream,
         stream.getVideoTracks().first,
@@ -88,12 +182,8 @@ class LocalVideoTrack extends LocalTrack with VideoTrack {
     ];
 
     if (stream.getAudioTracks().isNotEmpty) {
-      tracks.add(LocalAudioTrack(
-          Track.screenShareName,
-          TrackSource.screenShareAudio,
-          stream,
-          stream.getAudioTracks().first,
-          const AudioCaptureOptions()));
+      tracks.add(LocalAudioTrack(TrackSource.screenShareAudio, stream,
+          stream.getAudioTracks().first, const AudioCaptureOptions()));
     }
     return tracks;
   }
@@ -110,10 +200,13 @@ extension LocalVideoTrackExt on LocalVideoTrack {
       logger.warning('Not a camera track');
       return;
     }
-
-    await restartTrack(
-      options.copyWith(cameraPosition: position),
-    );
+    final newOptions = CameraCaptureOptions(
+        cameraPosition: position,
+        deviceId: null,
+        maxFrameRate: options.maxFrameRate,
+        params: options.params);
+    await restartTrack(newOptions);
+    currentOptions = newOptions;
   }
 
   Future<void> switchCamera(String deviceId, {bool fastSwitch = false}) async {

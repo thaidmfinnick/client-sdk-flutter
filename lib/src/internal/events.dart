@@ -62,6 +62,22 @@ class TrackStreamUpdatedEvent with TrackEvent, InternalEvent {
 }
 
 @internal
+class AudioPlaybackStarted with TrackEvent, EngineEvent, InternalEvent {
+  final Track track;
+  const AudioPlaybackStarted({
+    required this.track,
+  });
+}
+
+@internal
+class AudioPlaybackFailed with TrackEvent, EngineEvent, InternalEvent {
+  final Track track;
+  const AudioPlaybackFailed({
+    required this.track,
+  });
+}
+
+@internal
 class LocalTrackOptionsUpdatedEvent with TrackEvent, InternalEvent {
   final LocalTrack track;
   final LocalTrackOptions options;
@@ -97,6 +113,15 @@ class InternalTrackMuteUpdatedEvent with TrackEvent, InternalEvent {
 class SignalJoinResponseEvent with SignalEvent, InternalEvent {
   final lk_rtc.JoinResponse response;
   const SignalJoinResponseEvent({
+    required this.response,
+  });
+}
+
+@internal
+// Received a ReconnectResponse from the server.
+class SignalReconnectResponseEvent with SignalEvent, InternalEvent {
+  final lk_rtc.ReconnectResponse response;
+  const SignalReconnectResponseEvent({
     required this.response,
   });
 }
@@ -247,8 +272,10 @@ class EngineActiveSpeakersUpdateEvent with EngineEvent, InternalEvent {
 @internal
 class SignalLeaveEvent with SignalEvent, InternalEvent {
   final bool canReconnect;
+  final lk_models.DisconnectReason reason;
   const SignalLeaveEvent({
     required this.canReconnect,
+    required this.reason,
   });
 }
 

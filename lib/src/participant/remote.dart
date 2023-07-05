@@ -5,9 +5,12 @@ import '../core/room.dart';
 import '../events.dart';
 import '../exceptions.dart';
 import '../extensions.dart';
+import '../internal/events.dart';
 import '../logger.dart';
 import '../proto/livekit_models.pb.dart' as lk_models;
 import '../publication/remote.dart';
+import '../support/platform.dart';
+import '../track/options.dart';
 import '../track/remote/audio.dart';
 import '../track/remote/remote.dart';
 import '../track/remote/video.dart';
@@ -75,6 +78,7 @@ class RemoteParticipant extends Participant<RemoteTrackPublication> {
     rtc.MediaStream stream,
     String trackSid, {
     rtc.RTCRtpReceiver? receiver,
+    AudioOutputOptions audioOutputOptions = const AudioOutputOptions(),
   }) async {
     logger.fine('addSubscribedMediaTrack()');
 
@@ -112,17 +116,38 @@ class RemoteParticipant extends Participant<RemoteTrackPublication> {
     final RemoteTrack track;
     if (pub.kind == lk_models.TrackType.VIDEO) {
       // video track
-      track = RemoteVideoTrack(pub.name, pub.source, stream, mediaTrack,
-          receiver: receiver);
+      track =
+          RemoteVideoTrack(pub.source, stream, mediaTrack, receiver: receiver);
     } else if (pub.kind == lk_models.TrackType.AUDIO) {
       // audio track
-      track = RemoteAudioTrack(pub.name, pub.source, stream, mediaTrack,
-          receiver: receiver);
+      track =
+          RemoteAudioTrack(pub.source, stream, mediaTrack, receiver: receiver);
+
+      var listener = track.createListener();
+      listener.on<AudioPlaybackStarted>((event) {
+        logger.fine('AudioPlaybackStarted');
+        room.engine.events.emit(event);
+      });
+
+      listener.on<AudioPlaybackFailed>((event) {
+        logger.fine('AudioPlaybackFailed');
+        room.engine.events.emit(event);
+      });
     } else {
       throw UnexpectedStateException('Unknown track type');
     }
 
     await track.start();
+
+    /// Apply audio output selection for the web.
+    if (pub.kind == lk_models.TrackType.AUDIO &&
+        lkPlatformIs(PlatformType.web)) {
+      if (audioOutputOptions.deviceId != null) {
+        await (track as RemoteAudioTrack)
+            .setSinkId(audioOutputOptions.deviceId!);
+      }
+    }
+
     await pub.updateTrack(track);
     await pub.updateSubscriptionAllowed(true);
     addTrackPublication(pub);

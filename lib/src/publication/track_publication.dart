@@ -1,17 +1,11 @@
 import 'package:meta/meta.dart';
 
+import '../../livekit_client.dart';
 import '../core/signal_client.dart';
-import '../events.dart';
 import '../extensions.dart';
 import '../internal/events.dart';
-import '../logger.dart';
-import '../participant/participant.dart';
 import '../proto/livekit_models.pb.dart' as lk_models;
 import '../support/disposable.dart';
-import '../track/local/local.dart';
-import '../track/track.dart';
-import '../types/other.dart';
-import '../types/video_dimensions.dart';
 
 /// Represents a track that's published to the server. This class contains
 /// metadata associated with tracks.
@@ -49,6 +43,11 @@ abstract class TrackPublication<T extends Track> extends Disposable {
 
   bool get subscribed => track != null;
 
+  EncryptionType get encryptionType {
+    if (latestInfo == null) return EncryptionType.kNone;
+    return latestInfo!.encryption.toLkType();
+  }
+
   @internal
   lk_models.TrackInfo? latestInfo;
 
@@ -63,9 +62,10 @@ abstract class TrackPublication<T extends Track> extends Disposable {
     updateFromInfo(info);
   }
 
-  /// True when the track is published with name [Track.screenShareName].
+  /// True when the track is published with source [TrackSource.screenShareVideo].
   bool get isScreenShare =>
-      kind == lk_models.TrackType.VIDEO && name == Track.screenShareName;
+      kind == lk_models.TrackType.VIDEO &&
+      source == TrackSource.screenShareVideo;
 
   void updateFromInfo(lk_models.TrackInfo info) {
     _simulcasted = info.simulcast;

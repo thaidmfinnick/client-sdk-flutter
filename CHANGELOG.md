@@ -1,5 +1,68 @@
 # CHANGELOG
 
+## 1.3.5
+
+* Fix: Fix ScreenShareCaptureOptions not passed correctly.
+* Fix: facingMode for mobile web.
+* Fix: add name to AudioPublishOptions.
+* Fix: track not stop stats monitor correctly.
+* Feat: add preferCurrentTab support for flutter web.
+* Fix incorrect 4:3 preset bitrates
+* Fix: fix wrong override when options is not null when LocalTrack.create.
+
+## 1.3.4
+
+* Fix: Frame drops for Android.
+
+## 1.3.3
+
+* Fix: issue for get user audio on Android.
+
+## 1.3.2
+
+* Fix: Improve iOS/macOS H264 encoder.
+* Fix: Default capture/publish options for fast connect.
+
+## 1.3.1
+
+* Feat: add linux support.
+* Fix: audio play bug for ios safari.
+* Fix: fix bluetooth device enumerate on android.
+* Fix: Do not operate on inactive tracks.
+* Fix: use the correct transceiver id.
+* Fix: Support restart camera for windows/linux.
+* Fix: Move the call of capturer.stopCapture() outside the main thread
+       to avoid blocking of flutter method call.
+* Fix: Handle exceptions for framerate settings for darwin.
+
+## 1.3.0
+
+* Fix resolution/framerate/bitrate issue for publishVideoTrack.
+* End-to-end encryption support.
+
+## 1.2.2
+
+* Feat: Support setVideoFPS for subscribe.
+* Feat: topic for data-channel.
+* Feat: support metadata update.
+* Feat: handle reconnect response to re-configuration PCs.
+* Docs: readme manager initial setup.
+* Feat: upgrade protocol version to v9.
+* Chore: Use participantIdentity instead of Sid for track permissions.
+* Feat: Bump flutter-webrtc to 0.9.25.
+* Fix: Fix empty label for Wired Headset on Android.
+* Fix: ICE Connectivity doesn't establish with DualSIM iPhones.
+
+## 1.2.1
+
+* Fix: fix memory leak for screen capture (macOS).
+* Feat: web/native device consistency management (native/web).
+* Fix: fix renderer issue for Safari/Firefox.
+* Fix: set forceRelay if server response is enabled.
+* Feat: Forward leave reason of disconnected events.
+* Feat: expose logger level api.
+* Feat: expose Room recording event.
+
 ## 1.2.0
 
 * Fix: re-publish tracks after re connect
@@ -135,7 +198,7 @@
   video layers that are not being consumed by any subscribers, significantly
   reducing publishing CPU and bandwidth usage. (currently defaults to off)
 * Rename `optimizeVideo` to `adaptiveStream` and improve stability.
-  AdaptiveStream lets LiveKit automatically manage quality of subscribed 
+  AdaptiveStream lets LiveKit automatically manage quality of subscribed
   video tracks to optimize for bandwidth and CPU.
 * Ensure data channel is ready state when `LocalParticipant.publishData` api is called.
 

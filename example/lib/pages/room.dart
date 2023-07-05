@@ -54,12 +54,23 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   void _setUpListeners() => _listener
-    ..on<RoomDisconnectedEvent>((_) async {
+    ..on<RoomDisconnectedEvent>((event) async {
+      if (event.reason != null) {
+        print('Room disconnected: reason => ${event.reason}');
+      }
       WidgetsBindingCompatible.instance
           ?.addPostFrameCallback((timeStamp) => Navigator.pop(context));
     })
+    ..on<RoomRecordingStatusChanged>((event) {
+      context.showRecordingStatusChangedDialog(event.activeRecording);
+    })
     ..on<LocalTrackPublishedEvent>((_) => _sortParticipants())
     ..on<LocalTrackUnpublishedEvent>((_) => _sortParticipants())
+    ..on<TrackE2EEStateEvent>(_onE2EEStateEvent)
+    ..on<ParticipantNameUpdatedEvent>((event) {
+      print(
+          'Participant name updated: ${event.participant.identity}, name => ${event.name}');
+    })
     ..on<DataReceivedEvent>((event) {
       String decoded = 'Failed to decode';
       try {
@@ -68,6 +79,15 @@ class _RoomPageState extends State<RoomPage> {
         print('Failed to decode: $_');
       }
       context.showDataReceivedDialog(decoded);
+    })
+    ..on<AudioPlaybackStatusChanged>((event) async {
+      if (!widget.room.canPlaybackAudio) {
+        print('Audio playback failed for iOS Safari ..........');
+        bool? yesno = await context.showPlayAudioManuallyDialog();
+        if (yesno == true) {
+          await widget.room.startAudio();
+        }
+      }
     });
 
   void _askPublish() async {
@@ -90,6 +110,10 @@ class _RoomPageState extends State<RoomPage> {
 
   void _onRoomDidUpdate() {
     _sortParticipants();
+  }
+
+  void _onE2EEStateEvent(TrackE2EEStateEvent e2eeState) {
+    print('e2ee state: $e2eeState');
   }
 
   void _sortParticipants() {
@@ -166,31 +190,40 @@ class _RoomPageState extends State<RoomPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        body: Column(
+        body: Stack(
           children: [
-            Expanded(
-                child: participantTracks.isNotEmpty
-                    ? ParticipantWidget.widgetFor(participantTracks.first)
-                    : Container()),
-            SizedBox(
-              height: 100,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: math.max(0, participantTracks.length - 1),
-                itemBuilder: (BuildContext context, int index) => SizedBox(
-                  width: 100,
-                  height: 100,
-                  child:
-                      ParticipantWidget.widgetFor(participantTracks[index + 1]),
-                ),
-              ),
+            Column(
+              children: [
+                Expanded(
+                    child: participantTracks.isNotEmpty
+                        ? ParticipantWidget.widgetFor(participantTracks.first,
+                            showStatsLayer: true)
+                        : Container()),
+                if (widget.room.localParticipant != null)
+                  SafeArea(
+                    top: false,
+                    child: ControlsWidget(
+                        widget.room, widget.room.localParticipant!),
+                  )
+              ],
             ),
-            if (widget.room.localParticipant != null)
-              SafeArea(
-                top: false,
-                child:
-                    ControlsWidget(widget.room, widget.room.localParticipant!),
-              ),
+            Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                child: SizedBox(
+                  height: 120,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: math.max(0, participantTracks.length - 1),
+                    itemBuilder: (BuildContext context, int index) => SizedBox(
+                      width: 180,
+                      height: 120,
+                      child: ParticipantWidget.widgetFor(
+                          participantTracks[index + 1]),
+                    ),
+                  ),
+                )),
           ],
         ),
       );

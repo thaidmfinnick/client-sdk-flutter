@@ -7,6 +7,7 @@ import 'participant/remote.dart';
 import 'publication/local.dart';
 import 'publication/remote.dart';
 import 'publication/track_publication.dart';
+import 'track/stats.dart';
 import 'track/track.dart';
 import 'types/other.dart';
 import 'types/participant_permissions.dart';
@@ -65,10 +66,13 @@ class RoomRestartedEvent with RoomEvent {
 /// Disconnected from the room
 /// Emitted by [Room].
 class RoomDisconnectedEvent with RoomEvent {
-  const RoomDisconnectedEvent();
+  DisconnectReason? reason;
+  RoomDisconnectedEvent({
+    this.reason,
+  });
 
   @override
-  String toString() => '${runtimeType}()';
+  String toString() => '${runtimeType}($reason)';
 }
 
 /// Room metadata has changed.
@@ -82,6 +86,19 @@ class RoomMetadataChangedEvent with RoomEvent {
 
   @override
   String toString() => '${runtimeType}()';
+}
+
+/// Room recording status has changed.
+/// Emitted by [Room].
+class RoomRecordingStatusChanged with RoomEvent {
+  final bool activeRecording;
+
+  const RoomRecordingStatusChanged({
+    required this.activeRecording,
+  });
+
+  @override
+  String toString() => '${runtimeType}(activeRecording = $activeRecording)';
 }
 
 /// When a new [RemoteParticipant] joins *after* the current participant has connected
@@ -331,9 +348,11 @@ class DataReceivedEvent with RoomEvent, ParticipantEvent {
   /// Sender of the data. This may be null if data is sent from Server API.
   final RemoteParticipant? participant;
   final List<int> data;
+  final String? topic;
   const DataReceivedEvent({
     required this.participant,
     required this.data,
+    required this.topic,
   });
 
   @override
@@ -392,4 +411,82 @@ class ParticipantPermissionsUpdatedEvent with RoomEvent, ParticipantEvent {
   @override
   String toString() => '${runtimeType}'
       '(participant: ${participant}, permissions: ${permissions})';
+}
+
+class ParticipantNameUpdatedEvent with RoomEvent, ParticipantEvent {
+  final Participant participant;
+  final String name;
+  const ParticipantNameUpdatedEvent({
+    required this.participant,
+    required this.name,
+  });
+
+  @override
+  String toString() => '${runtimeType}'
+      '(participant: ${participant}, name: ${name})';
+}
+
+class AudioPlaybackStatusChanged with RoomEvent {
+  final bool isPlaying;
+  const AudioPlaybackStatusChanged({
+    required this.isPlaying,
+  });
+
+  @override
+  String toString() => '${runtimeType}'
+      'Audio Playback Status Changed, isPlaying: ${isPlaying})';
+}
+
+class AudioSenderStatsEvent with TrackEvent {
+  final AudioSenderStats stats;
+  final num currentBitrate;
+  const AudioSenderStatsEvent({
+    required this.stats,
+    required this.currentBitrate,
+  });
+
+  @override
+  String toString() => '${runtimeType}'
+      'stats: ${stats})';
+}
+
+class VideoSenderStatsEvent with TrackEvent {
+  final Map<String, VideoSenderStats> stats;
+  final Map<String, num> bitrateForLayers;
+  final num currentBitrate;
+  const VideoSenderStatsEvent({
+    required this.stats,
+    required this.currentBitrate,
+    required this.bitrateForLayers,
+  });
+
+  @override
+  String toString() => '${runtimeType}'
+      'stats: ${stats})';
+}
+
+class AudioReceiverStatsEvent with TrackEvent {
+  final AudioReceiverStats stats;
+  final num currentBitrate;
+  const AudioReceiverStatsEvent({
+    required this.stats,
+    required this.currentBitrate,
+  });
+
+  @override
+  String toString() => '${runtimeType}'
+      'stats: ${stats})';
+}
+
+class VideoReceiverStatsEvent with TrackEvent {
+  final VideoReceiverStats stats;
+  final num currentBitrate;
+  const VideoReceiverStatsEvent({
+    required this.stats,
+    required this.currentBitrate,
+  });
+
+  @override
+  String toString() => '${runtimeType}'
+      'stats: ${stats})';
 }
