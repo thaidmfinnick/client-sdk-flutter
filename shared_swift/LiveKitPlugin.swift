@@ -190,17 +190,22 @@ public class LiveKitPlugin: NSObject, FlutterPlugin {
             // unlock()
             print("[LiveKit] RTCAudioSession Configure success")
 
-            // also configure longFormAudio
-            // let avSession = AVAudioSession.sharedInstance()
-            // try avSession.setCategory(AVAudioSession.Category(rawValue: configuration.category),
-            //                      mode: AVAudioSession.Mode(rawValue: configuration.mode),
-            //                      policy: .default,
-            //                      options: configuration.categoryOptions)
-            // print("[LiveKit] AVAudioSession Configure success")
-
-            // preferSpeakerOutput
             if let preferSpeakerOutput = args["preferSpeakerOutput"] as? Bool {
               try rtcSession.overrideOutputAudioPort(preferSpeakerOutput ? .speaker : .none)
+            } else {
+              let avSession = AVAudioSession.sharedInstance()
+              if let availableInputs = avSession.availableInputs {
+                  for input in availableInputs {
+                      print("log: input: \(input.portType)")
+                      if input.portType == .bluetoothHFP {
+                          // Prefer Bluetooth if available
+                          print("log: choose bluetooth")
+                          try avSession.setPreferredInput(input)
+                          result(true)
+                      }
+                  }
+              }
+              try avSession.overrideOutputAudioPort(.none)
             }
             result(true)
         } catch let error {
