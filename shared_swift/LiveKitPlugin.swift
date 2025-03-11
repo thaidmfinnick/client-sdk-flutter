@@ -189,7 +189,7 @@ public class LiveKitPlugin: NSObject, FlutterPlugin {
             // unlock here before configuring `AVAudioSession`
             // unlock()
             print("[LiveKit] RTCAudioSession Configure success")
-
+            print("preferSpeakerOutput \(args["preferSpeakerOutput"])")
             if let preferSpeakerOutput = args["preferSpeakerOutput"] as? Bool {
               try rtcSession.overrideOutputAudioPort(preferSpeakerOutput ? .speaker : .none)
             } else {
